@@ -1,0 +1,12 @@
+{
+    "db_host": "zkpass_database",
+    "db_port": 5434,
+    "db_user": "zkpass",
+    "db_password": "zkpass",
+    "db_name": "zkpass", 
+    "validator_name" : "validator-self",
+    "faucet_account_name" : "faucet",
+    "nyksAmount" : "100000nyks",
+    "satsAmount" : "50000",
+    "relayer_address" : ""
+}
