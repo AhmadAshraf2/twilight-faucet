@@ -9,6 +9,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"bytes"
+	"context"
+	"time"
+
 	"github.com/rs/cors"
 	"github.com/spf13/viper"
 )
@@ -163,6 +167,17 @@ func handlemint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	kyc_status := checkZkPassStatus(viper.GetString("zkpass_check_endpoint"), payload.RecipientAddress)
+	mapping_status, err := checkMappingExists(payload.RecipientAddress)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking mapping existence: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if !kyc_status && !mapping_status {
+		http.Error(w, "Please either verify your address or provide ethereum mapping", http.StatusForbidden)
+		return
+	}
+
 	exists, err := addressExists(payload.RecipientAddress)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error checking address existence: %v", err), http.StatusInternalServerError)
@@ -259,6 +274,17 @@ func handlefaucet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	kyc_status := checkZkPassStatus(viper.GetString("zkpass_check_endpoint"), payload.RecipientAddress)
+	mapping_status, err := checkMappingExists(payload.RecipientAddress)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error checking mapping existence: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if !kyc_status && !mapping_status {
+		http.Error(w, "Please either verify your address or provide ethereum mapping", http.StatusForbidden)
+		return
+	}
+
 	exists, err := addressExists(payload.RecipientAddress)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error checking address existence: %v", err), http.StatusInternalServerError)
@@ -337,4 +363,51 @@ func initialize() {
 	dbUser = viper.GetString("db_user")
 	dbPassword = viper.GetString("db_password")
 	dbName = viper.GetString("db_name")
+}
+
+type whitelistResp struct {
+	Status string `json:"status"`
+	Data   struct {
+		Address     string `json:"address"`
+		Whitelisted bool   `json:"whitelisted"`
+	} `json:"data"`
+}
+
+// checkZkPassStatus calls the Next.js /whitelist/check endpoint and returns true/false.
+func checkZkPassStatus(endpointURL, address string) bool {
+	addr := strings.TrimSpace(address)
+	if addr == "" {
+		return false
+	}
+
+	// No request type—just a tiny map
+	body, _ := json.Marshal(map[string]string{
+		"recipientAddress": addr,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	var out whitelistResp
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return false
+	}
+
+	return out.Status == "success" && out.Data.Whitelisted
 }

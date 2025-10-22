@@ -9,21 +9,21 @@ import (
 )
 
 // Alternative: Insert with explicit lastused value (if needed)
-func insertAddressWithTime(address string) error {
-	db, error := connectToDatabase()
-	if error != nil {
-		return fmt.Errorf("failed to connect to database: %w", error)
-	}
-	defer db.Close()
-	query := `INSERT INTO addresses (address, lastusedNyks, lastusedSats) VALUES ($1, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')`
+// func insertAddressWithTime(address string) error {
+// 	db, error := connectToDatabase()
+// 	if error != nil {
+// 		return fmt.Errorf("failed to connect to database: %w", error)
+// 	}
+// 	defer db.Close()
+// 	query := `INSERT INTO addresses (address, lastusedNyks, lastusedSats) VALUES ($1, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')`
 
-	_, err := db.Exec(query, address)
-	if err != nil {
-		return fmt.Errorf("failed to insert address: %w", err)
-	}
+// 	_, err := db.Exec(query, address)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to insert address: %w", err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func insertAddressWithNyksTime(address string) error {
 	db, error := connectToDatabase()
@@ -171,4 +171,36 @@ func connectToDatabase() (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func insertAddressMapping(twilightAddress, ethAddress string) error {
+	db, error := connectToDatabase()
+	if error != nil {
+		return fmt.Errorf("failed to connect to database: %w", error)
+	}
+	defer db.Close()
+	query := `INSERT INTO AddressMappings (twilight_address, eth_address) VALUES ($1, $2)`
+	_, err := db.Exec(query, twilightAddress, ethAddress)
+	if err != nil {
+		return fmt.Errorf("failed to insert address mapping: %w", err)
+	}
+	return nil
+}
+
+func checkMappingExists(twilightAddress string) (bool, error) {
+	db, error := connectToDatabase()
+	if error != nil {
+		return false, fmt.Errorf("failed to connect to database: %w", error)
+	}
+	defer db.Close()
+
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM AddressMappings WHERE twilight_address=$1)`
+
+	err := db.QueryRow(query, twilightAddress).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check mapping existence: %w", err)
+	}
+
+	return exists, nil
 }
