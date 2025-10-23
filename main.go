@@ -21,6 +21,11 @@ type RequestPayload struct {
 	RecipientAddress string `json:"recipientAddress"`
 }
 
+type RegisterRequestPayload struct {
+	EthAddress       string `json:"ethaddress"`
+	TwilightAddress  string `json:"twilightAddress"`
+}
+
 var VALIDATOR_NAME string
 
 var (
@@ -326,6 +331,39 @@ func handlefaucet(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Command executed successfully"))
 }
 
+func handleRegisterMapping(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload RegisterRequestPayload
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	if payload.EthAddress == "" {
+		http.Error(w, "ethaddress is required", http.StatusBadRequest)
+		return
+	}
+
+	if payload.TwilightAddress == "" {
+		http.Error(w, "twilightAddress is required", http.StatusBadRequest)
+		return
+	}
+
+	err = insertAddressMapping(payload.TwilightAddress, payload.EthAddress)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to register mapping: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Mapping registered successfully"))
+}
+
 //================================================================================================
 
 func main() {
@@ -334,6 +372,7 @@ func main() {
 	mux.HandleFunc("/mint", handlemint)
 	mux.HandleFunc("/faucet", handlefaucet)
 	mux.HandleFunc("/mint-relayer-wallet", handlemintRelayerWallet)
+	mux.HandleFunc("/register", handleRegisterMapping) {
 	// Configure
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -373,7 +412,7 @@ type whitelistResp struct {
 	} `json:"data"`
 }
 
-// checkZkPassStatus calls the Next.js /whitelist/check endpoint and returns true/false.
+
 func checkZkPassStatus(endpointURL, address string) bool {
 	addr := strings.TrimSpace(address)
 	if addr == "" {
